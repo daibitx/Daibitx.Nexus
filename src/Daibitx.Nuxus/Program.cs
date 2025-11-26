@@ -1,10 +1,7 @@
-using Daibitx.Nuxus.Core;
 using Daibitx.Nuxus.Hmac;
-using Serilog;
 using System.Security.Cryptography;
 using System.Text;
 using System.Threading.RateLimiting;
-using Yarp.ReverseProxy.Configuration;
 using Yarp.ReverseProxy.Transforms;
 
 namespace Daibitx.Nuxus
@@ -19,11 +16,6 @@ namespace Daibitx.Nuxus
 
             builder.Host.UseAgileConfig();
 
-            builder.Services.AddLogging();
-
-            builder.Host.UseSerilog();
-
-            builder.Services.AddSingleton<DynamicConfigManager>();
             builder.Services.AddRateLimiter(options =>
             {
                 var config = builder.Configuration.GetSection("RateLimit");
@@ -52,8 +44,7 @@ namespace Daibitx.Nuxus
 
                 options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
             });
-
-            builder.Services.AddReverseProxy().LoadFromMemory(new List<RouteConfig>(), new List<ClusterConfig>())
+            builder.Services.AddReverseProxy().LoadFromConfig(builder.Configuration.GetSection("ReverseProxy"))
                 .AddTransforms(transformBuilderContext =>
                 {
                     transformBuilderContext.AddRequestTransform(async transformContext =>
@@ -90,14 +81,6 @@ namespace Daibitx.Nuxus
                 });
 
             var app = builder.Build();
-
-            var inMemoryConfigProvider = app.Services.GetRequiredService<InMemoryConfigProvider>();
-
-            var dynamicConfigManager = app.Services.GetRequiredService<DynamicConfigManager>();
-
-            var config = dynamicConfigManager.LoadFromConfig();
-
-            inMemoryConfigProvider.Update(config.routes, config.clusters);
 
             app.UseRateLimiter();
 
