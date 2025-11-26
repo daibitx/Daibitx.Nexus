@@ -1,3 +1,4 @@
+using Daibitx.Nuxus.Core;
 using Daibitx.Nuxus.Hmac;
 using Serilog;
 using System.Security.Cryptography;
@@ -22,6 +23,7 @@ namespace Daibitx.Nuxus
 
             builder.Host.UseSerilog();
 
+            builder.Services.AddSingleton<DynamicConfigManager>();
             builder.Services.AddRateLimiter(options =>
             {
                 var config = builder.Configuration.GetSection("RateLimit");
@@ -88,6 +90,14 @@ namespace Daibitx.Nuxus
                 });
 
             var app = builder.Build();
+
+            var inMemoryConfigProvider = app.Services.GetRequiredService<InMemoryConfigProvider>();
+
+            var dynamicConfigManager = app.Services.GetRequiredService<DynamicConfigManager>();
+
+            var config = dynamicConfigManager.LoadFromConfig();
+
+            inMemoryConfigProvider.Update(config.routes, config.clusters);
 
             app.UseRateLimiter();
 
