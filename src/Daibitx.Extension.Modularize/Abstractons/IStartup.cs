@@ -6,11 +6,11 @@ using System;
 
 namespace Daibitx.Extension.Modularize.Abstractons
 {
-    public interface IStartup
+    internal interface IStartup
     {
 
         void ConfigurationService(IConfiguration configuration, IServiceCollection services);
 
-        void Configuration(IApplicationBuilder builder, IEndpointRouteBuilder routes, IServiceProvider serviceProvider);
+        void Configure(IApplicationBuilder builder, IEndpointRouteBuilder routes, IServiceProvider serviceProvider);
     }
 }
