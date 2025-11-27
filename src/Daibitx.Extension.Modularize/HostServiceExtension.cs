@@ -4,40 +4,54 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using System;
 using System.Linq;
-using System.Runtime.CompilerServices;
 
 namespace Daibitx.Extension.Modularize
 {
     public static class HostServiceExtension
     {
-        public static void ConfigureModulesService(this WebApplicationBuilder application, Action<string> rootConfig)
+        public static void ConfigureModulesService(this WebApplicationBuilder application, Action<ModuleOptions> moduleOptions)
+        {
+            var options = new ModuleOptions();
+            moduleOptions(options);
+            var logger = GetLogger<ModulePipeline>(application.Services);
+            var moduleDiscoverer = new ModuleDiscoverer(options.ModulesPath);
+            var moduleLoader = new ModuleLoader(logger);
+            var moduleDescriptors = moduleDiscoverer.Discover();
+            foreach (var moduleDescriptor in moduleDescriptors)
+            {
+                logger.LogInformation($"Loading module {moduleDescriptor.AssemblyName}...");
+                var module = moduleLoader.LoadModuleAssembly(moduleDescriptor);
+                if (module != null)
+                    options.Modules.Add(moduleDescriptor);
+            }
+            var pipelineBuilder = new ModulePipeline();
+            pipelineBuilder.Build(application.Services, logger, options, application.Host, application.Configuration);
+            application.Services.AddSingleton(options);
+        }
+
+        public static void ConfigureModules(this IApplicationBuilder builder, IEndpointRouteBuilder routes, IServiceProvider serviceProvider)
+        {
+            var modulePipeline = new ModulePipeline();
+            var options = serviceProvider.GetRequiredService<ModuleOptions>();
+            modulePipeline.Configure(builder, routes, serviceProvider, options);
+        }
+
+        private static ILogger GetLogger<T>(this IServiceCollection services)
         {
             ILoggerFactory loggerFactory;
-            var loggerFactoryDescriptor = application.Services.FirstOrDefault(s => s.ServiceType == typeof(ILoggerFactory));
+            var loggerFactoryDescriptor = services.FirstOrDefault(s => s.ServiceType == typeof(ILoggerFactory));
             if (loggerFactoryDescriptor?.ImplementationInstance is ILoggerFactory)
             {
                 loggerFactory = (ILoggerFactory)loggerFactoryDescriptor.ImplementationInstance;
             }
             else
             {
-                var tempServiceProvider = application.Services.BuildServiceProvider();
+                var tempServiceProvider = services.BuildServiceProvider();
                 loggerFactory = tempServiceProvider.GetRequiredService<ILoggerFactory>();
             }
-            var rootPath = string.Empty;
-            rootConfig(rootPath);
-            var moduleDiscoverer = new ModuleDiscoverer(rootPath);
-            var moduleLoader = new ModuleLoader(loggerFactory.CreateLogger<ModuleLoader>());
-            var pipelineBuilder = new ModulePipeline(loggerFactory.CreateLogger<ModulePipeline>(),
-                                                     moduleDiscoverer, moduleLoader,
-                                                     application.Host, application.Configuration);
-            pipelineBuilder.Build(application.Services);
+            return loggerFactory.CreateLogger<T>();
 
-            application.Services.AddSingleton(pipelineBuilder);
         }
 
-        public static void ConfigureModules(IApplicationBuilder builder, IEndpointRouteBuilder routes, IServiceProvider serviceProvider)
-        {
-            serviceProvider.GetRequiredService<ModulePipeline>().Configure(builder, routes, serviceProvider);
-        }
     }
 }

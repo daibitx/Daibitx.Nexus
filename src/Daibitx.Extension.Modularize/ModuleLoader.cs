@@ -8,9 +8,9 @@ namespace Daibitx.Extension.Modularize
 {
     internal class ModuleLoader
     {
-        private readonly ILogger<ModuleLoader> _logger;
+        private readonly ILogger _logger;
 
-        internal ModuleLoader(ILogger<ModuleLoader> logger)
+        internal ModuleLoader(ILogger logger)
         {
             _logger = logger;
         }
